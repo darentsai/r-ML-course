@@ -1,0 +1,417 @@
+---
+title: "Statistical and Machine Learning"
+subtitle: "Lab1: Model Assessment <br> Evaluation, Cross-validation, and Bootstrap"
+author: "Tsai, Dai-Rong"
+format:
+  revealjs:
+    theme: default
+    echo: true
+    smaller: true
+    scrollable: true
+    slide-number: true
+    auto-stretch: false
+    history: false
+    embed-resources: true
+---
+
+## Dataset
+
+```{r echo = FALSE}
+options(digits = 3, width = 150)
+```
+
+```{css echo = FALSE}
+.reveal table, ul ul li {
+  font-size: smaller;
+}
+```
+
+> ***Pima Indians Diabetes Database***
+
+```{r}
+# Set random seed
+set.seed(999)
+
+# Packages
+library(caret) # for knn3, confusionMatrix
+library(pROC) # for roc, auc
+
+# Data
+data(PimaIndiansDiabetes, package = "mlbench")
+```
+
+- Response
+    - `diabetes`: test for diabetes (`neg` / `pos`)
+- Predictors
+    - `pregnant`: Number of times pregnant
+    - `glucose`: Plasma glucose concentration (glucose tolerance test)
+    - `pressure`: Diastolic blood pressure (mmHg)
+    - `triceps`: Triceps skin fold thickness (mm)
+    - `insulin`: 2-hour serum insulin ($\mu$U/ml)
+    - `mass`: Body mass index (weight in kg/$\text{(height in m)}^2$)
+    - `pedigree`: Diabetes pedigree function
+    - `age`: Age (years)
+
+---
+
+::: {.panel-tabset}
+
+### Preview
+
+```{r}
+dim(PimaIndiansDiabetes)
+head(PimaIndiansDiabetes)
+```
+
+### Data Structure
+
+```{r}
+str(PimaIndiansDiabetes)
+```
+
+:::
+
+## Tasks
+
+::: {.incremental}
+1. Split data into 80% training set and 20% test set.
+2. Train a $k$-Nearest Neighbour (`k-NN`) classifier to predict whether individuals in the test dataset have diabetes.
+3. The number of neighbours `k` is determined using
+    - 10-fold Cross-validation
+    - Bootstrap
+:::
+
+## Create Training/Testing Partitions
+
+- Split data into 80% training set and 20% test set
+
+```{r}
+nr <- nrow(PimaIndiansDiabetes)
+train.id <- sample(nr, nr * 0.8)
+
+training <- PimaIndiansDiabetes[train.id, ]
+testing <- PimaIndiansDiabetes[-train.id, ]
+```
+
+- Check dimension
+
+```{r}
+dim(training)
+dim(testing)
+```
+
+## k-Fold Cross-Validation
+
+```{r}
+n.folds <- 10
+foldid <- sample(cut(1:nrow(training), n.folds, labels = FALSE))
+table(foldid)
+```
+
+#### (Step 1.) Predict the 1st fold using the 2nd to 10th folds as training set.
+
+```{r}
+true.label <- training$diabetes[foldid == 1]
+knn.mod <- knn3(diabetes ~ ., data = training[foldid != 1, ], k = 3)
+knn.pred <- predict(knn.mod, newdata = training[foldid == 1, ], type = "class")
+knn.pred
+```
+
+::: {.callout-tip title="Arguments"}
+- `type`
+    - `"prob"` (default) : return the proportion of the votes for the winning class.
+    - `"class"`: return the predicted class.
+:::
+
+- Confusion Matrix
+
+```{r}
+table(Reality = true.label, Prediction = knn.pred)
+```
+
+- Accuracy
+
+```{r}
+mean(true.label == knn.pred)
+```
+
+## {auto-animate="true"}
+
+```{r echo = FALSE}
+k.grid <- seq(3, 21, by = 2)
+```
+
+#### (Step 2.) Iterate across all the `r n.folds` folds with `k` from `r min(k.grid)` to `r max(k.grid)`.
+
+```r
+k.grid <- seq(3, 21, by = 2)
+
+acc.cv <- sapply(k.grid, \(k) {
+  sapply(1:n.folds, \(x) {
+      ## Put codes from (Step 1) here
+  })
+})
+```
+
+## {auto-animate=true}
+
+#### (Step 2.) Iterate across all the `r n.folds` folds with `k` from `r min(k.grid)` to `r max(k.grid)`.
+
+```r
+k.grid <- seq(3, 21, by = 2)
+
+acc.cv <- sapply(k.grid, \(k) {
+  sapply(1:n.folds, \(x) {
+    true.label <- training$diabetes[foldid == x]
+    knn.mod <- knn3(diabetes ~ ., data = training[foldid != x, ], k = k)
+    knn.pred <- predict(knn.mod, newdata = training[foldid == x, ], type = "class")
+    return(mean(true.label == knn.pred))
+  })
+})
+
+dimnames(acc.cv) <- list(paste('fold =', 1:n.folds), paste('k =', k.grid))
+```
+
+## {auto-animate=true}
+
+#### (Step 2.) Iterate across all the `r n.folds` folds with `k` from `r min(k.grid)` to `r max(k.grid)`.
+
+```{r}
+k.grid <- seq(3, 21, by = 2)
+
+acc.cv <- sapply(k.grid, \(k) {
+  sapply(1:n.folds, \(x) {
+    true.label <- training$diabetes[foldid == x]
+    knn.mod <- knn3(diabetes ~ ., data = training[foldid != x, ], k = k)
+    knn.pred <- predict(knn.mod, newdata = training[foldid == x, ], type = "class")
+    return(mean(true.label == knn.pred))
+  })
+})
+
+dimnames(acc.cv) <- list(paste('fold =', 1:n.folds), paste('k =', k.grid))
+```
+
+```{r}
+acc.cv
+```
+
+---
+
+#### (Step 3.) For each `k`, calculate the average accuracy of the `r n.folds` folds, and pick the maximum as the final model.
+
+```r
+boxplot(acc.cv)
+points(1:ncol(acc.cv), colMeans(acc.cv), col = 2, pch = 16, type = 'o')
+```
+
+```{r echo = FALSE}
+#| fig-width: 8
+#| fig-height: 4
+
+par(mai = c(0.5, 0.5, 0.1, 0.1))
+boxplot(acc.cv)
+points(1:ncol(acc.cv), colMeans(acc.cv), col = 2, pch = 16, type = 'o')
+```
+
+- Final model:
+
+```{r}
+(k.optim.cv <- k.grid[which.max(colMeans(acc.cv))])
+```
+
+## Bootstrap
+
+#### (Step 1.) Randomly draw 1 dataset ***with replacement*** from the training data and each sample has the ***same size*** as the original training set.
+
+```{r}
+boot.id <- sample(nrow(training), nrow(training), replace = TRUE)
+true.label <- training$diabetes[-boot.id]
+```
+
+- Refit the model and examine the behavior of the fit.
+
+```{r}
+knn.mod <- knn3(diabetes ~ ., data = training[boot.id, ], k = 3)
+knn.pred <- predict(knn.mod, newdata = training[-boot.id, ], type = "class")
+```
+
+- Confusion Matrix
+
+```{r}
+table(Reality = true.label, Prediction = knn.pred)
+```
+
+- Accuracy
+
+```{r}
+mean(true.label == knn.pred)
+```
+
+## {auto-animate="true"}
+
+#### (Step 2.) Repeat `B`=1,000 times with `k` from `r min(k.grid)` to `r max(k.grid)`.
+
+```r
+B <- 1000
+k.grid <- seq(3, 21, by = 2)
+
+acc.boot <- sapply(k.grid, \(k) {
+  replicate(B, {
+    ## Put codes from (Step 1) here
+  })
+})
+```
+
+## {auto-animate="true"}
+
+#### (Step 2.) Repeat `B`=1,000 times with `k` from `r min(k.grid)` to `r max(k.grid)`.
+
+```r
+B <- 1000
+k.grid <- seq(3, 21, by = 2)
+
+acc.boot <- sapply(k.grid, \(k) {
+  replicate(B, {
+    boot.id <- sample(nrow(training), nrow(training), replace = TRUE)
+    true.label <- training$diabetes[-boot.id]
+    knn.mod <- knn3(diabetes ~ ., data = training[boot.id, ], k = k)
+    knn.pred <- predict(knn.mod, newdata = training[-boot.id, ], type = "class")
+    return(mean(true.label == knn.pred))
+  })
+})
+
+dimnames(acc.boot) <- list(paste('Bootstrap =', 1:B), paste('k =', k.grid))
+```
+
+## {auto-animate="true"}
+
+#### (Step 2.) Repeat `B`=1,000 times with `k` from `r min(k.grid)` to `r max(k.grid)`.
+
+```{r}
+B <- 1000
+k.grid <- seq(3, 21, by = 2)
+
+acc.boot <- sapply(k.grid, \(k) {
+  replicate(B, {
+    boot.id <- sample(nrow(training), nrow(training), replace = TRUE)
+    true.label <- training$diabetes[-boot.id]
+    knn.mod <- knn3(diabetes ~ ., data = training[boot.id, ], k = k)
+    knn.pred <- predict(knn.mod, newdata = training[-boot.id, ], type = "class")
+    return(mean(true.label == knn.pred))
+  })
+})
+
+dimnames(acc.boot) <- list(paste('Bootstrap =', 1:B), paste('k =', k.grid))
+```
+
+```{r}
+head(acc.boot)
+tail(acc.boot)
+```
+
+---
+
+#### (Step 3.) For each `k`, calculate the average accuracy of the `r B` bootstrap samples, and pick the maximum as the final model.
+
+```r
+boxplot(acc.boot)
+points(1:ncol(acc.boot), colMeans(acc.boot), col = 2, pch = 16, type = 'o')
+```
+
+```{r echo = FALSE}
+#| fig-width: 8
+#| fig-height: 4
+
+par(mai = c(0.5, 0.5, 0.1, 0.1))
+boxplot(acc.boot)
+points(1:ncol(acc.boot), colMeans(acc.boot), col = 2, pch = 16, type = 'o')
+```
+
+- Final model:
+
+```{r}
+(k.optim.boot <- k.grid[which.max(colMeans(acc.boot))])
+```
+
+## Predictions for the test dataset
+
+- Model 1 (by Cross-validation)
+
+```{r}
+knn.mod.cv <- knn3(diabetes ~ ., data = training, k = k.optim.cv)
+```
+
+- Model 2 (by Bootstrap)
+
+```{r}
+knn.mod.boot <- knn3(diabetes ~ ., data = training, k = k.optim.boot)
+```
+
+- Confusion Matrix
+
+::: {.panel-tabset}
+
+### Model 1
+
+```{r}
+knn.pred.cv <- predict(knn.mod.cv, newdata = testing, type = "class")
+confusionMatrix(knn.pred.cv, testing$diabetes, positive = "pos", mode = "everything")
+```
+
+### Model 2
+
+```{r}
+knn.pred.boot <- predict(knn.mod.boot, newdata = testing, type = "class")
+confusionMatrix(knn.pred.boot, testing$diabetes, positive = "pos", mode = "everything")
+```
+
+:::
+
+---
+
+- ROC Curve
+
+```{r}
+#| fig-width: 5
+
+knn.prob.cv <- predict(knn.mod.cv, newdata = testing, type = "prob")
+knn.prob.boot <- predict(knn.mod.boot, newdata = testing, type = "prob")
+
+roc.knn.cv <- plot.roc(testing$diabetes, knn.prob.cv[, 2],
+                       percent = TRUE, col = "#1c61b6",
+                       main = "Statistical comparison")
+
+roc.knn.boot <- lines.roc(testing$diabetes, knn.prob.boot[, 2],
+                          percent = TRUE, col = "#008600")
+
+legend("bottomright", legend = paste("k =", c(k.optim.cv, k.optim.boot)),
+       col = c("#1c61b6", "#008600"), lwd = 2, bty = 'n')
+```
+
+- Full AUC
+
+```{r}
+auc(roc.knn.cv)
+auc(roc.knn.boot)
+```
+
+- Partial AUC
+
+```{r}
+auc(roc.knn.cv, partial.auc = c(100, 80),
+    partial.auc.focus = "specificity", partial.auc.correct = TRUE)
+```
+
+- ROC Curve with Partial AUC
+
+```{r}
+#| fig-width: 5
+
+plot.roc(testing$diabetes, knn.prob.cv[, 2], col = "#1c61b6",
+         percent = TRUE, partial.auc = c(100, 80),
+         partial.auc.correct = TRUE, print.auc = TRUE,
+         auc.polygon = TRUE, auc.polygon.col = "#1c61b630")
+```
+
+- Other available arguments: Check `?plot.roc`
+- More example: <https://xrobin.github.io/pROC/screenshots.html>

@@ -1,0 +1,426 @@
+---
+title: "Statistical and Machine Learning"
+subtitle: "Lab2: Regularization <br> Ridge, LASSO, and Elastic-net Regression"
+author: "Tsai, Dai-Rong"
+format:
+  revealjs:
+    theme: default
+    echo: true
+    smaller: true
+    scrollable: true
+    slide-number: true
+    auto-stretch: false
+    history: false
+    embed-resources: true
+tbl-cap-location: bottom
+---
+
+## Dataset
+
+```{r echo = FALSE}
+options(digits = 5, width = 150)
+```
+
+```{css echo = FALSE}
+.reveal table, ul ul li {
+  font-size: smaller;
+}
+```
+
+> ***Prostate Cancer Data***
+
+```{r}
+# Set random seed
+set.seed(999)
+
+# Packages
+library(MASS) # for stepAIC
+library(glmnet) # for glmnet, glmnet.cv
+library(sparsegl) # for sparsegl, cv.sparsegl
+
+# Data
+prostate <- read.table("http://www.stat.cmu.edu/~ryantibs/statcomp/data/pros.dat")
+```
+
+- Response
+    - `lpsa`: log(prostate-specific antigen)
+- Predictors
+    - `lcavol`: log(cancer volume)
+    - `lweight`: log(prostate weight)
+    - `age`: age
+    - `lbph`: log(amount of benign prostatic hyperplasia)
+    - `svi`: seminal vesicle invasion
+    - `lcp`: log(capsular penetration)
+    - `gleason`: Gleason scores
+    - `pgg45`: percentage Gleason scores 4 or 5
+
+---
+
+::: {.panel-tabset}
+
+### Preview
+
+```{r}
+dim(prostate)
+head(prostate)
+```
+
+### Data Structure
+
+```{r}
+str(prostate)
+```
+
+:::
+
+## Create Training/Testing Partitions
+
+- Split data into 80% training set and 20% test set
+
+```{r}
+nr <- nrow(prostate)
+train.id <- sample(nr, nr * 0.8)
+
+training <- prostate[train.id, ]
+testing <- prostate[-train.id, ]
+```
+
+- Check dimension
+
+```{r}
+dim(training)
+dim(testing)
+```
+
+## Model Formulae in R
+
+| Formula | Model |
+|--------|--------|
+| `Y ~ 1` | $Y = \beta_0 + \epsilon$ |
+| `Y ~ X1 + X2` | $Y = \beta_0 + \beta_1X_1 + \beta_2X_2 + \epsilon$ |
+| `Y ~ X1 + X2 - 1` | $Y = \beta_1X_1 + \beta_2X_2 + \epsilon$ |
+| `Y ~ .` | $Y = \beta_0 + \beta_1X_1 + \ldots + \beta_pX_p + \epsilon$ |
+| `Y ~ . - Xp` | $Y = \beta_0 + \beta_1X_1 + \ldots + \beta_{p-1}X_{p-1} + \epsilon$ |
+| `Y ~ X1:X2` | $Y = \beta_0 + \beta_{12}X_1X_2 + \epsilon$ |
+| `Y ~ X1 * X2` | $Y = \beta_0 + \beta_1X_1 + \beta_2X_2 + \beta_{12}X_1X_2 + \epsilon$ |
+| `Y ~ (X1 + X2 + X3)^2` | $\begin{aligned}
+                            Y = &\beta_0 + \beta_1X_1 + \beta_2X_2 + \beta_3X_3 + \\
+                                &\beta_{12}X_1X_2 + \beta_{13}X_1X_3 + \beta_{23}X_2X_3 + \epsilon \\
+                                &(\color{red}{\beta_{123}X_1X_2X_3} \text{ is NOT contained})
+                            \end{aligned}$ |
+| `Y ~ X1 + I(X1^2)` <br> `Y ~ poly(X1, 2, raw = TRUE)` | $Y = \beta_0 + \beta_1X_1 + \beta_2X_1^2 + \epsilon$ |
+
+: Model Formulae in R {#tbl-formula}
+
+## Subset Selection
+
+::: {.callout-note title=`stats::step()`}
+
+- This is a minimal implementation. Use `stepAIC` in package `MASS` for a wider range of object classes.
+- B. D. Ripley: `step` is a slightly simplified version of `stepAIC` in package `MASS`.
+
+:::
+
+```{r}
+lm.full <- lm(lpsa ~ ., data = training)
+```
+
+:::: {.columns}
+
+::: {.column width="50%"}
+
+- Forward Selection
+
+```{r}
+lm.for <- stepAIC(update(lm.full, . ~ 1),
+                  scope = list(upper = lm.full),
+                  direction = "forward",
+                  trace = 0)
+lm.for$anova
+```
+
+:::
+
+::: {.column width="50%"}
+
+- Backward Selection
+
+```{r}
+lm.back <- stepAIC(lm.full,
+                   scope = list(lower = ~ 1),
+                   direction = "backward",
+                   trace = 0)
+lm.back$anova
+```
+:::
+
+::::
+
+- Stepwise Selection
+
+```{r}
+lm.step <- stepAIC(lm.full, scope = list(lower = ~ 1), direction = "both", trace = 0)
+lm.step$anova
+```
+
+## Regularization
+
+- Construct Design Matrix
+
+```{r}
+x <- model.matrix(lpsa ~ . - 1, data = training)
+y <- training$lpsa
+```
+
+::: {.callout-note}
+
+- `"lpsa ~ ."`: Create a design matrix for all variables except for `lpsa`.
+- `". - 1"`: Exclude the column of intercepts. (The intercept term is fitted by default in `glmnet`)
+
+:::
+
+### Ridge / Lasso Regression
+
+```{r}
+ridge <- glmnet(x = x, y = y, alpha = 0) # Ridge
+lasso <- glmnet(x = x, y = y, alpha = 1) # Lasso
+```
+
+```{r}
+#| fig-width: 10
+#| fig-height: 7
+#| code-fold: true
+#| code-summary: "codes for plot"
+
+par(mfrow = c(2, 2))
+plot(ridge, xvar = "lambda", label = TRUE)
+plot(ridge, xvar = "norm", label = TRUE)
+plot(lasso, xvar = "lambda", label = TRUE)
+plot(lasso, xvar = "norm", label = TRUE)
+title("Ridge Regression", line = -2, outer = TRUE)
+title("Lasso Regression", line = -22, outer = TRUE)
+```
+
+```{r echo = FALSE}
+op <- options(digits = 2)
+```
+
+:::: {.columns}
+
+::: {.column width="50%"}
+
+- Coefficients of Ridge
+
+```{r}
+coef(ridge, s = exp(seq(-2, 6, 2)))
+```
+
+:::
+
+::: {.column width="50%"}
+
+- Coefficients of Lasso
+
+```{r}
+coef(lasso, s = exp(seq(-5, -1, 1)))
+```
+
+:::
+
+::::
+
+```{r echo = FALSE}
+options(op)
+```
+
+---
+
+### Cross-Validation
+
+:::: {.columns}
+
+::: {.column width="50%"}
+
+- CV for Ridge
+
+```{r}
+ridge.cv <- cv.glmnet(x = x, y = y, alpha = 0,
+                      type.measure = "mse",
+                      nfolds = 10)
+ridge.cv
+plot(ridge.cv)
+coef(ridge.cv, s = "lambda.min")
+```
+
+:::
+
+::: {.column width="50%"}
+
+- CV of Lasso
+
+```{r}
+lasso.cv <- cv.glmnet(x = x, y = y, alpha = 1,
+                      type.measure = "mse",
+                      nfolds = 10)
+lasso.cv
+plot(lasso.cv)
+coef(lasso.cv, s = "lambda.min")
+```
+
+:::
+
+::::
+
+::: {.callout-tip}
+
+### Arguments
+
+- `type.measure`: loss to use for cross-validation.
+    - `"default"` : MSE for gaussian models, deviance for logistic and poisson regressions, and partial-likelihood for the Cox model.
+    - `"mse"`/`"mae"`: Mean squared/absolute error for all models except the "Cox".
+    - `"deviance"`: Deviance for logistic and poisson regressions.
+    - `"class"`: Misclassification error for binomial and multinomial logistic regressions.
+    - `"auc"`: Area under the ROC curve for ***two-class*** logistic regression.
+    - `"C"`: Harrel's concordance measure for ***Cox*** models.
+- `s`: Value(s) of the penalty parameter $\lambda$.
+    - `"lambda.1se"` (default): Largest value of $\lambda$ such that error is within 1 standard error of the minimum.
+    - `"lambda.min"`: Value of $\lambda$ that gives the minimum mean cross-validated error.
+    - numeric vector: Value(s) of $\lambda$ to be used
+
+:::
+
+---
+
+### Elastic-Net
+
+- CV of Elastic-Net
+
+::: {.callout-tip}
+
+### Arguments
+
+- `foldid`: an optional vector of values between 1 and `nfolds` identifying what fold each observation is in. If supplied, `nfolds` can be missing.
+
+Users can explicitly control the fold that each observation is assigned to via the `foldid` argument.
+This is useful in using cross-validation to select a value for $\alpha$.
+
+:::
+
+```{r}
+foldid <- sample(cut(1:nrow(training), 10, labels = FALSE))
+
+elnet.cv <- do.call(rbind,
+  lapply(seq(0, 1, 0.2), \(a) {
+    cv <- cv.glmnet(x = x, y = y, foldid = foldid, alpha = a)
+    data.frame(alpha = a, cv[c("lambda", "cvm")])
+  })
+)
+```
+
+:::: {.columns}
+
+::: {.column width="50%"}
+
+```{r}
+head(elnet.cv)
+```
+
+:::
+
+::: {.column width="50%"}
+
+```{r}
+tail(elnet.cv)
+```
+
+:::
+
+::::
+
+```{r}
+#| fig-width: 8
+#| fig-height: 4
+#| code-fold: true
+#| code-summary: "codes for plot"
+
+library(ggplot2)
+
+ggplot(elnet.cv, aes(x = log(lambda), y = cvm, colour = factor(alpha))) +
+  geom_line() + geom_point(size = 0.5) +
+  scale_color_viridis_d(name = quote(alpha)) +
+  labs(x = quote(log(lambda)), y = "Cross-Validation MSE") +
+  theme_bw()
+```
+
+- Optimal CV Parameters
+
+```{r}
+(elnet.optim <- elnet.cv[which.min(elnet.cv$cvm), ])
+elnet <- glmnet(x = x, y = y, alpha = elnet.optim$alpha, lambda = elnet.optim$lambda)
+coef(elnet)
+```
+
+---
+
+### (Sparse-) Group Lasso
+
+```{r}
+(grp <- setNames(rep(1:4, each = 2), colnames(x)))
+
+grplasso <- sparsegl(x = x, y = y, group = grp, asparse = 0)
+grplasso.cv <- cv.sparsegl(x = x, y = y, group = grp, asparse = 0, pred.loss = "mse")
+grplasso.cv
+```
+
+::: {.callout-note}
+
+- `asparse = 0` gives the group lasso fit; `asparse = 1` gives the lasso fit.
+
+:::
+
+```{r}
+coef(grplasso.cv, s = "lambda.1se")
+```
+
+```{r}
+#| fig-width: 12
+#| fig-height: 4
+#| code-fold: true
+#| code-summary: "codes for plot"
+
+library(patchwork)
+p1 <- plot(grplasso, y_axis = "group")
+p2 <- plot(grplasso.cv)
+p1 + p2
+```
+
+## Prediction
+
+```{r}
+pred.for <- predict(lm.for, testing)
+pred.back <- predict(lm.back, testing)
+pred.step <- predict(lm.step, testing)
+
+z <- model.matrix(lpsa ~ . - 1, data = testing)
+pred.ridge <- predict(ridge.cv, newx = z, s = "lambda.min")
+pred.lasso <- predict(lasso.cv, newx = z, s = "lambda.min")
+pred.elnet <- predict(elnet, newx = z)
+
+mse <- sapply(mget(ls(pattern = "^pred")), \(x) mean((x - testing$lpsa)^2))
+sort(mse)
+```
+
+```{r}
+#| fig-width: 7
+#| fig-height: 5
+#| code-fold: true
+#| code-summary: "codes for plot"
+
+barplot(sort(mse), ylim = range(mse) + c(-0.01, 0.01), xpd = FALSE, col = 4,
+        ylab = "MSE", main = "Prediction Error")
+```
+
+## References
+
+- [`{glmnet}` Website](https://glmnet.stanford.edu/articles/glmnet.html)
+- [`{sparsegl}` Website](https://dajmcdon.github.io/sparsegl/articles/sparsegl.html)
