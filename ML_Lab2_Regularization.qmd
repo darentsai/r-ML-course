@@ -186,6 +186,16 @@ ridge <- glmnet(x = x, y = y, alpha = 0) # Ridge
 lasso <- glmnet(x = x, y = y, alpha = 1) # Lasso
 ```
 
+::: {.callout-tip}
+
+### Arguments
+
+- `family`:
+    - One of the built-in families: `"gaussian"`(default), `"binomial"`, `"poisson"`, `"multinomial"`, `"cox"`.
+    - or a `glm()` family object. (See `?family`)
+
+:::
+
 ```{r}
 #| fig-width: 10
 #| fig-height: 7
