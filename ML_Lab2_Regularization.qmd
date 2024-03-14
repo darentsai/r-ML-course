@@ -308,9 +308,10 @@ This is useful in using cross-validation to select a value for $\alpha$.
 
 ```{r}
 foldid <- sample(cut(1:nrow(training), 10, labels = FALSE))
+alpha.grid <- seq(0.1, 0.9, 0.2)
 
 elnet.cv <- do.call(rbind,
-  lapply(seq(0, 1, 0.2), \(a) {
+  lapply(alpha.grid, \(a) {
     cv <- cv.glmnet(x = x, y = y, foldid = foldid, alpha = a)
     data.frame(alpha = a, cv[c("lambda", "cvm")])
   })
