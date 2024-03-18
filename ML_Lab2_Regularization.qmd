@@ -11,6 +11,7 @@ format:
     slide-number: true
     auto-stretch: false
     history: false
+    pdf-max-pages-per-slide: 5
     embed-resources: true
 tbl-cap-location: bottom
 ---
@@ -22,7 +23,7 @@ options(digits = 5, width = 150)
 ```
 
 ```{css echo = FALSE}
-.reveal table, ul ul li {
+.reveal table, ul ul li, p code{
   font-size: smaller;
 }
 ```
@@ -31,7 +32,7 @@ options(digits = 5, width = 150)
 
 ```{r}
 # Set random seed
-set.seed(999)
+set.seed(1234)
 
 # Packages
 library(MASS) # for stepAIC
@@ -114,7 +115,9 @@ dim(testing)
 
 ## Subset Selection
 
-::: {.callout-note title=`stats::step()`}
+::: {.callout-note}
+
+### `stats::step()`
 
 - This is a minimal implementation. Use `stepAIC` in package `MASS` for a wider range of object classes.
 - B. D. Ripley: `step` is a slightly simplified version of `stepAIC` in package `MASS`.
@@ -168,14 +171,14 @@ lm.step$anova
 - Construct Design Matrix
 
 ```{r}
-x <- model.matrix(lpsa ~ . - 1, data = training)
+x <- model.matrix(lpsa ~ ., data = training)[, -1]
 y <- training$lpsa
 ```
 
-::: {.callout-note}
+::: {.callout-note appearance="minimal"}
 
 - `"lpsa ~ ."`: Create a design matrix for all variables except for `lpsa`.
-- `". - 1"`: Exclude the column of intercepts. (The intercept term is fitted by default in `glmnet`)
+- `"[, -1]"`: Exclude the column of intercepts. (The intercept term is fitted by default in `glmnet`)
 
 :::
 
@@ -191,8 +194,8 @@ lasso <- glmnet(x = x, y = y, alpha = 1) # Lasso
 ### Arguments
 
 - `family`:
-    - One of the built-in families: `"gaussian"`(default), `"binomial"`, `"poisson"`, `"multinomial"`, `"cox"`.
-    - or a `glm()` family object. (See `?family`)
+    - One of the built-in families: `"gaussian"`(default), `"binomial"`, `"poisson"`, `"multinomial"`, `"cox"`, `"mgaussian"`.
+    - A `glm()` family object. (See `?family`)
 
 :::
 
@@ -305,17 +308,6 @@ coef(lasso.cv, s = "lambda.min")
 
 - CV of Elastic-Net
 
-::: {.callout-tip}
-
-### Arguments
-
-- `foldid`: an optional vector of values between 1 and `nfolds` identifying what fold each observation is in. If supplied, `nfolds` can be missing.
-
-Users can explicitly control the fold that each observation is assigned to via the `foldid` argument.
-This is useful in using cross-validation to select a value for $\alpha$.
-
-:::
-
 ```{r}
 foldid <- sample(cut(1:nrow(training), 10, labels = FALSE))
 alpha.grid <- seq(0.1, 0.9, 0.2)
@@ -347,6 +339,17 @@ tail(elnet.cv)
 :::
 
 ::::
+
+::: {.callout-tip}
+
+### Arguments
+
+- `foldid`: an optional vector of values between 1 and `nfolds` identifying what fold each observation is in. If supplied, `nfolds` can be missing.
+
+Users can explicitly control the fold that each observation is assigned to via the `foldid` argument.
+This is useful in using cross-validation to select a value for $\alpha$.
+
+:::
 
 ```{r}
 #| fig-width: 8
@@ -383,9 +386,13 @@ grplasso.cv <- cv.sparsegl(x = x, y = y, group = grp, asparse = 0, pred.loss = "
 grplasso.cv
 ```
 
-::: {.callout-note}
+::: {.callout-tip}
 
-- `asparse = 0` gives the group lasso fit; `asparse = 1` gives the lasso fit.
+### Arguments
+
+- `group`: A vector of consecutive integers describing the grouping of the coefficients.
+- `asparse`: The relative weight to put on the $\ell_1$-norm in sparse group lasso. 
+    - `asparse = 0` gives the group lasso fit; `asparse = 1` gives the lasso fit.
 
 :::
 
@@ -405,6 +412,51 @@ p2 <- plot(grplasso.cv)
 p1 + p2
 ```
 
+---
+
+### Model Re-fit
+
+Take **LASSO** for example:
+
+1.  Extract columns with non-zero coefficients
+
+```{r}
+(lasso.coef <- coef(lasso.cv, s = "lambda.min"))
+(non0 <- which(lasso.coef[-1, ] != 0))
+```
+
+2.  Refit the model without regularization.
+
+```{r}
+x.sub <- x[, non0]
+lasso.refit.1 <- glmnet(x = x.sub, y = y, lambda = 0)
+```
+
+::: {.callout-important appearance="minimal"}
+
+`lambda = 0` means no shrinkage!
+
+:::
+
+We can also recreate a formula and pass it to the corresponding model (`lm`, `glm`, etc.), i.e.
+
+```{r}
+lasso.refit.2 <- lm(reformulate(names(non0), "lpsa"), data = training)
+```
+
+where `reformulate(names(non0), "lpsa")` gives
+
+```{r echo = FALSE}
+reformulate(names(non0), "lpsa")
+```
+
+- Comparison
+
+```{r}
+cbind("glmnet(lambda=0)" = coef(lasso.refit.1)[, 1],
+      "lm" = coef(lasso.refit.2))
+```
+
 ## Prediction
 
 ```{r}
@@ -412,12 +464,20 @@ pred.for <- predict(lm.for, testing)
 pred.back <- predict(lm.back, testing)
 pred.step <- predict(lm.step, testing)
 
-z <- model.matrix(lpsa ~ . - 1, data = testing)
+z <- model.matrix(lpsa ~ ., data = testing)[, -1]
 pred.ridge <- predict(ridge.cv, newx = z, s = "lambda.min")
 pred.lasso <- predict(lasso.cv, newx = z, s = "lambda.min")
 pred.elnet <- predict(elnet, newx = z)
+pred.lasso.refit <- predict(lasso.refit.1, newx = z[, non0])
 
 mse <- sapply(mget(ls(pattern = "^pred")), \(x) mean((x - testing$lpsa)^2))
+```
+
+```{r echo = FALSE}
+names(mse) <- sub("pred.", "", names(mse))
+```
+
+```{r}
 sort(mse)
 ```
 
