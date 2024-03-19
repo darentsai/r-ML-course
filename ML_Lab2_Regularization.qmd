@@ -427,21 +427,10 @@ Take **LASSO** for example:
 
 2.  Refit the model without regularization.
 
-```{r}
-x.sub <- x[, non0]
-lasso.refit.1 <- glmnet(x = x.sub, y = y, lambda = 0)
-```
-
-::: {.callout-important appearance="minimal"}
-
-`lambda = 0` means no shrinkage!
-
-:::
-
-We can also recreate a formula and pass it to the corresponding model (`lm`, `glm`, etc.), i.e.
+We can recreate a formula and pass it to the corresponding model (`lm`, `glm`, etc.), i.e.
 
 ```{r}
-lasso.refit.2 <- lm(reformulate(names(non0), "lpsa"), data = training)
+lasso.refit <- lm(reformulate(names(non0), "lpsa"), data = training)
 ```
 
 where `reformulate(names(non0), "lpsa")` gives
@@ -450,11 +439,10 @@ where `reformulate(names(non0), "lpsa")` gives
 reformulate(names(non0), "lpsa")
 ```
 
-- Comparison
+- Result
 
 ```{r}
-cbind("glmnet(lambda=0)" = coef(lasso.refit.1)[, 1],
-      "lm" = coef(lasso.refit.2))
+summary(lasso.refit)
 ```
 
 ## Prediction
@@ -468,7 +456,7 @@ z <- model.matrix(lpsa ~ ., data = testing)[, -1]
 pred.ridge <- predict(ridge.cv, newx = z, s = "lambda.min")
 pred.lasso <- predict(lasso.cv, newx = z, s = "lambda.min")
 pred.elnet <- predict(elnet, newx = z)
-pred.lasso.refit <- predict(lasso.refit.1, newx = z[, non0])
+pred.lasso.refit <- predict(lasso.refit, newdata = testing)
 
 mse <- sapply(mget(ls(pattern = "^pred")), \(x) mean((x - testing$lpsa)^2))
 ```
