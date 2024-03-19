@@ -1225,7 +1225,7 @@ Tsai, Dai-Rong
 <h2>Dataset</h2>
 <div class="cell">
 <style type="text/css">
-.reveal table, ul ul li {
+.reveal table, ul ul li, p code{
 font-size: smaller;
 }
 </style>
@@ -1364,8 +1364,9 @@ font-size: smaller;
 <span id="cb15-3"><a href></a>knn.pred <span class="ot">&lt;-</span> <span class="fu">predict</span>(knn.mod, <span class="at">newdata =</span> training[foldid <span class="sc">==</span> <span class="dv">1</span>, ], <span class="at">type =</span> <span class="st">&quot;class&quot;</span>)</span>
 <span id="cb15-4"><a href></a>knn.pred</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
-<pre><code> [1] neg pos pos pos neg neg neg pos pos neg pos pos pos neg neg neg pos pos neg neg neg pos pos pos pos neg neg neg neg neg pos neg pos neg neg neg
-[37] neg neg pos neg neg neg pos neg pos neg neg pos neg neg neg neg neg pos pos neg neg neg pos pos neg pos
+<pre><code> [1] neg pos pos pos neg neg neg pos pos neg pos pos pos neg neg neg pos pos neg neg neg pos pos pos
+[25] pos neg neg neg neg neg pos neg pos neg neg neg neg neg pos neg neg neg pos neg pos neg neg pos
+[49] neg neg neg neg neg pos pos neg neg neg pos pos neg pos
 Levels: neg pos</code></pre>
 </div>
 </div>
@@ -2678,6 +2679,7 @@ window.QuartoSupport = function () {
 'autoAnimateEasing': "ease",
 'autoAnimateDuration': 1,
 'autoAnimateUnmatched': true,
+'pdfMaxPagesPerSlide': 5,
 'menu': {"side":"left","useTextContentForMissingTitles":true,"markers":false,"loadIcons":false,"custom":[{"title":"Tools","icon":"<i class=\"fas fa-gear\"></i>","content":"<ul class=\"slide-menu-items\">\n<li class=\"slide-tool-item active\" data-item=\"0\"><a href=\"#\" onclick=\"RevealMenuToolHandlers.fullscreen(event)\"><kbd>f</kbd> Fullscreen</a></li>\n<li class=\"slide-tool-item\" data-item=\"1\"><a href=\"#\" onclick=\"RevealMenuToolHandlers.speakerMode(event)\"><kbd>s</kbd> Speaker View</a></li>\n<li class=\"slide-tool-item\" data-item=\"2\"><a href=\"#\" onclick=\"RevealMenuToolHandlers.overview(event)\"><kbd>o</kbd> Slide Overview</a></li>\n<li class=\"slide-tool-item\" data-item=\"3\"><a href=\"#\" onclick=\"RevealMenuToolHandlers.togglePdfExport(event)\"><kbd>e</kbd> PDF Export Mode</a></li>\n<li class=\"slide-tool-item\" data-item=\"4\"><a href=\"#\" onclick=\"RevealMenuToolHandlers.keyboardHelp(event)\"><kbd>?</kbd> Keyboard Help</a></li>\n</ul>"}],"openButton":true},
 'smaller': true,
  

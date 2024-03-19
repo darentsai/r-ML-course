@@ -1,0 +1,456 @@
+---
+title: "Statistical and Machine Learning"
+subtitle: "Lab3: Classification <br> Logistic regression, Linear regression, and k-nearest neighbors"
+author: "Tsai, Dai-Rong"
+format:
+  revealjs:
+    theme: default
+    echo: true
+    smaller: true
+    scrollable: true
+    slide-number: true
+    auto-stretch: false
+    history: false
+    embed-resources: true
+tbl-cap-location: bottom
+---
+
+## Dataset
+
+```{r echo = FALSE}
+options(digits = 5, width = 100)
+```
+
+```{css echo = FALSE}
+.reveal table, ul ul li {
+  font-size: smaller;
+}
+```
+
+> ***Pima Indians Diabetes Database***
+
+```{r}
+# Set random seed
+set.seed(999)
+
+# Packages
+library(MASS) # for stepAIC
+library(glmnet) # for glmnet, glmnet.cv
+library(caret) # for train, trainControl
+
+# Data
+data(PimaIndiansDiabetes, package = "mlbench")
+```
+
+- Response
+    - `diabetes`: test for diabetes (`neg` / `pos`)
+- Predictors
+    - `pregnant`: Number of times pregnant
+    - `glucose`: Plasma glucose concentration (glucose tolerance test)
+    - `pressure`: Diastolic blood pressure (mmHg)
+    - `triceps`: Triceps skin fold thickness (mm)
+    - `insulin`: 2-hour serum insulin ($\mu$U/ml)
+    - `mass`: Body mass index (weight in kg/$\text{(height in m)}^2$)
+    - `pedigree`: Diabetes pedigree function
+    - `age`: Age (years)
+
+---
+
+::: {.panel-tabset}
+
+### Preview
+
+```{r}
+dim(PimaIndiansDiabetes)
+head(PimaIndiansDiabetes)
+proportions(table(PimaIndiansDiabetes$diabetes))
+```
+
+### Data Structure
+
+```{r}
+str(PimaIndiansDiabetes)
+```
+
+:::
+
+## Create Training/Testing Partitions
+
+- Split data into 80% training set and 20% test set
+
+```{r}
+nr <- nrow(PimaIndiansDiabetes)
+train.id <- sample(nr, nr * 0.8)
+
+training <- PimaIndiansDiabetes[train.id, ]
+testing <- PimaIndiansDiabetes[-train.id, ]
+```
+
+- Check dimension
+
+```{r}
+dim(training)
+dim(testing)
+```
+
+## Subset Selection
+
+```{r}
+glm.full <- glm(diabetes ~ ., family = binomial, data = training)
+```
+
+::: {.callout-tip}
+
+### Arguments
+
+- `family`: a description of the error distribution and link function to be used in the model.
+    - `binomial(link = "logit")`
+    - `gaussian(link = "identity")`
+    - `poisson(link = "log")`
+    - `quasipoisson(link = "log")`
+    - See `?family` for more family functions.
+
+:::
+
+- Stepwise Selection
+
+```{r}
+glm.step <- stepAIC(glm.full, scope = list(lower = ~ 1), direction = "both", trace = 0)
+glm.step$anova
+```
+
+- Prediction
+
+```{r}
+predict(glm.step, newdata = head(testing), type = "link")
+predict(glm.step, newdata = head(testing), type = "response")
+predict(glm.step, newdata = head(testing), type = "response", se.fit = TRUE)
+```
+
+::: {.callout-tip}
+
+### Arguments
+
+- `type`
+    - `"link"` (default) : scale of the linear predictors. $log(\frac{P(Y=1)}{1-P(Y=1)}) = X\beta$
+    - `"response"`: scale of the response variable. $P(Y=1) = \frac{exp(X\beta)}{1+exp(X\beta)}$
+- `se.fit`: logical switch indicating if standard errors are required.
+
+:::
+
+## Regularization
+
+- Construct Design Matrix
+
+```{r}
+x <- model.matrix(diabetes ~ ., data = training)[, -1]
+y <- training$diabetes
+```
+
+::: {.callout-note appearance="minimal"}
+
+- `"lpsa ~ ."`: Create a design matrix for all variables except for `lpsa`.
+- `"[, -1]"`: Exclude the column of intercepts. (The intercept term is fitted by default in `glmnet`)
+
+:::
+
+### Ridge / Lasso Regression
+
+```{r}
+ridge <- glmnet(x = x, y = y, family = "binomial", alpha = 0) # Ridge
+lasso <- glmnet(x = x, y = y, family = "binomial", alpha = 1) # Lasso
+```
+
+::: {.callout-tip}
+
+### Arguments
+
+- `family`:
+    - One of the built-in families: `"gaussian"`(default), `"binomial"`, `"poisson"`, `"multinomial"`, `"cox"`, `"mgaussian"`.
+    - A `glm()` family object. (See `?family`)
+
+:::
+
+::: {.callout-note}
+
+### **Multinomial** logistic regression
+
+- `family = "multinomial"`
+- `type.multinomial = "grouped"` : a grouped lasso penalty is used on the multinomial coefficients for a variable to ensure they are all together. The default is `"ungrouped"`.
+
+:::
+
+```{r}
+#| fig-width: 10
+#| fig-height: 7
+#| code-fold: true
+#| code-summary: "codes for plot"
+
+par(mfrow = c(2, 2))
+plot(ridge, xvar = "lambda", label = TRUE)
+plot(ridge, xvar = "norm", label = TRUE)
+plot(lasso, xvar = "lambda", label = TRUE)
+plot(lasso, xvar = "norm", label = TRUE)
+title("Ridge Regression", line = -2, outer = TRUE)
+title("Lasso Regression", line = -22, outer = TRUE)
+```
+
+```{r echo = FALSE}
+op <- options(digits = 1)
+```
+
+:::: {.columns}
+
+::: {.column width="50%"}
+
+- Coefficients of Ridge
+
+```{r}
+coef(ridge, s = exp(seq(-4, 4, 2)))
+```
+
+:::
+
+::: {.column width="50%"}
+
+- Coefficients of Lasso
+
+```{r}
+coef(lasso, s = exp(seq(-6, -2, 1)))
+```
+
+:::
+
+::::
+
+```{r echo = FALSE}
+options(op)
+```
+
+---
+
+### Cross-Validation
+
+:::: {.columns}
+
+::: {.column width="50%"}
+
+- CV for Ridge
+
+```{r}
+ridge.cv <- cv.glmnet(x = x, y = y, family = "binomial", alpha = 0,
+                      type.measure = "deviance",
+                      nfolds = 10)
+ridge.cv
+plot(ridge.cv)
+coef(ridge.cv, s = "lambda.min")
+```
+
+:::
+
+::: {.column width="50%"}
+
+- CV of Lasso
+
+```{r}
+lasso.cv <- cv.glmnet(x = x, y = y, family = "binomial", alpha = 1,
+                      type.measure = "deviance",
+                      nfolds = 10)
+lasso.cv
+plot(lasso.cv)
+coef(lasso.cv, s = "lambda.min")
+```
+
+:::
+
+::::
+
+::: {.callout-tip}
+
+### Arguments
+
+- `type.measure`: loss to use for cross-validation.
+    - `"default"` : MSE for gaussian models, deviance for logistic and poisson regressions, and partial-likelihood for the Cox model.
+    - `"mse"`/`"mae"`: Mean squared/absolute error for all models except the "Cox".
+    - `"deviance"`: Deviance for logistic and poisson regressions.
+    - `"class"`: Misclassification error for binomial and multinomial logistic regressions.
+    - `"auc"`: Area under the ROC curve for ***two-class*** logistic regression.
+    - `"C"`: Harrel's concordance measure for ***Cox*** models.
+- `s`: Value(s) of the penalty parameter $\lambda$.
+    - `"lambda.1se"` (default): Largest value of $\lambda$ such that error is within 1 standard error of the minimum.
+    - `"lambda.min"`: Value of $\lambda$ that gives the minimum mean cross-validated error.
+    - numeric vector: Value(s) of $\lambda$ to be used
+
+:::
+
+---
+
+### Elastic-Net
+
+- CV of Elastic-Net
+
+```{r}
+cv10 <- trainControl(method = "repeatedcv", number = 10, repeats = 5,
+                     # Evaluate performance using sensitivity, specificity, AUC
+                     summaryFunction = twoClassSummary, classProbs = TRUE)
+```
+
+::: {.callout-tip}
+
+### Arguments
+
+- `method`: the resampling method.
+    - `"boot"`, `"boot632"`, `"optimism_boot"`, `"boot_all"`, `"cv"`, `"repeatedcv"`, `"LOOCV"`
+    - `"LGOCV"`: for repeated training/test splits
+    - `"none"`: only fits one model to the entire training set
+    - `"oob"`: for random forest, bagged trees, bagged earth, bagged flexible discriminant analysis, or conditional tree forest models
+    - `"timeslice"`, `"adaptive_cv"`, `"adaptive_boot"`, `"adaptive_LGOCV"`
+
+- `summaryFunction`: a function to compute performance metrics across resamples.
+    - `twoClassSummary`: sensitivity, specificity, area under the ROC curve.
+    - `prSummary`: precision, recall, area under the precision-recall curve.
+    - `multiClassSummary`: computes some overall measures of for performance and several averages of statistics calculated from "one-versus-all" configurations.
+
+:::
+
+```{r}
+elnet.tune <- train(
+  diabetes ~ .,
+  data = training,
+  method = "glmnet",
+  trControl = cv10,
+  tuneLength = 10,
+  # Specify which metric to optimize
+  metric = "ROC"
+)
+```
+
+::: {.callout-note appearance="minimal"}
+
+### Arguments
+
+- `method`:
+    - Available Models: <http://topepo.github.io/caret/available-models.html>
+    - `train` Models by Tag: <http://topepo.github.io/caret/train-models-by-tag.html>
+
+- `preProcess`: A string vector that defines a pre-processing of the predictor data.
+Current possibilities are `"BoxCox"`, `"YeoJohnson"`, `"expoTrans"`, `"center"`, `"scale"`, `"range"`, `"knnImpute"`, `"bagImpute"`, `"medianImpute"`, `"pca"`, `"ica"` and `"spatialSign"`. The default is no pre-processing.
+
+:::
+
+:::: {.columns}
+
+::: {.column width="50%"}
+
+```{r}
+#| fig-height: 7
+
+plot(elnet.tune)
+```
+
+:::
+
+::: {.column width="50%"}
+
+```{r}
+#| fig-height: 7
+
+plot(elnet.tune, plotType = "level")
+```
+
+:::
+
+::::
+
+- Final Model
+
+```{r}
+(elnet.optim <- elnet.tune$bestTune)
+elnet <- glmnet(x = x, y = y, family = "binomial",
+                alpha = elnet.optim$alpha,
+                lambda = elnet.optim$lambda)
+coef(elnet)
+```
+
+## k-nearest neighbors (k-NN)
+
+- CV of k-NN
+
+```{r}
+knn.tune.1 <- train(
+  diabetes ~ .,
+  data = training,
+  method = "knn",
+  trControl = cv10,
+  tuneGrid = data.frame(k = seq(3, 31, 2)),
+  metric = "ROC"
+)
+
+knn.tune.2 <- train(
+  diabetes ~ .,
+  data = training,
+  method = "knn",
+  preProcess = c("center", "scale"),
+  trControl = cv10,
+  tuneGrid = data.frame(k = seq(3, 31, 2)),
+  metric = "ROC"
+)
+```
+
+:::: {.columns}
+
+::: {.column width="50%"}
+
+```{r}
+#| fig-height: 7
+
+knn.tune.1$bestTune
+plot(knn.tune.1)
+```
+
+:::
+
+::: {.column width="50%"}
+
+```{r}
+#| fig-height: 7
+
+knn.tune.2$bestTune
+plot(knn.tune.2)
+```
+
+:::
+
+::::
+
+## Prediction
+
+```{r}
+glm.prob <- predict(glm.step, testing, type = "response")
+pred.step <- ifelse(glm.prob >= 0.5, "pos", "neg")
+
+z <- model.matrix(diabetes ~ ., data = testing)[, -1]
+pred.elnet <- predict(elnet, newx = z, type = "class")
+
+pred.knn.1 <- predict(knn.tune.1, testing)
+pred.knn.2 <- predict(knn.tune.2, testing)
+
+acc <- sapply(mget(ls(pattern = "^pred")), \(x) mean(x == testing$diabetes))
+```
+
+
+```{r echo = FALSE}
+names(acc) <- sub("pred.", "", names(acc))
+```
+
+```{r}
+sort(acc)
+```
+
+```{r echo = FALSE}
+#| fig-width: 7
+#| fig-height: 5
+
+barplot(sort(acc), ylim = range(acc) + c(-0.01, 0.01), xpd = FALSE, col = 4,
+        ylab = "Accuracy", main = "Prediction Performance")
+```

@@ -19,7 +19,7 @@ tbl-cap-location: bottom
 ## Dataset
 
 ```{r echo = FALSE}
-options(digits = 5, width = 150)
+options(digits = 5, width = 100)
 ```
 
 ```{css echo = FALSE}
@@ -412,39 +412,6 @@ p2 <- plot(grplasso.cv)
 p1 + p2
 ```
 
----
-
-### Model Re-fit
-
-Take **LASSO** for example:
-
-1.  Extract columns with non-zero coefficients
-
-```{r}
-(lasso.coef <- coef(lasso.cv, s = "lambda.min"))
-(non0 <- which(lasso.coef[-1, ] != 0))
-```
-
-2.  Refit the model without regularization.
-
-We can recreate a formula and pass it to the corresponding model (`lm`, `glm`, etc.), i.e.
-
-```{r}
-lasso.refit <- lm(reformulate(names(non0), "lpsa"), data = training)
-```
-
-where `reformulate(names(non0), "lpsa")` gives
-
-```{r echo = FALSE}
-reformulate(names(non0), "lpsa")
-```
-
-- Result
-
-```{r}
-summary(lasso.refit)
-```
-
 ## Prediction
 
 ```{r}
@@ -456,7 +423,6 @@ z <- model.matrix(lpsa ~ ., data = testing)[, -1]
 pred.ridge <- predict(ridge.cv, newx = z, s = "lambda.min")
 pred.lasso <- predict(lasso.cv, newx = z, s = "lambda.min")
 pred.elnet <- predict(elnet, newx = z)
-pred.lasso.refit <- predict(lasso.refit, newdata = testing)
 
 mse <- sapply(mget(ls(pattern = "^pred")), \(x) mean((x - testing$lpsa)^2))
 ```
@@ -469,11 +435,9 @@ names(mse) <- sub("pred.", "", names(mse))
 sort(mse)
 ```
 
-```{r}
+```{r echo = FALSE}
 #| fig-width: 7
 #| fig-height: 5
-#| code-fold: true
-#| code-summary: "codes for plot"
 
 barplot(sort(mse), ylim = range(mse) + c(-0.01, 0.01), xpd = FALSE, col = 4,
         ylab = "MSE", main = "Prediction Error")

@@ -11,17 +11,19 @@ format:
     slide-number: true
     auto-stretch: false
     history: false
+    pdf-max-pages-per-slide: 5
     embed-resources: true
+tbl-cap-location: bottom
 ---
 
 ## Dataset
 
 ```{r echo = FALSE}
-options(digits = 3, width = 150)
+options(digits = 3, width = 100)
 ```
 
 ```{css echo = FALSE}
-.reveal table, ul ul li {
+.reveal table, ul ul li, p code{
   font-size: smaller;
 }
 ```
