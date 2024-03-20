@@ -347,9 +347,11 @@ elnet.tune <- train(
   # Specify which metric to optimize
   metric = "ROC"
 )
+
+elnet.tune
 ```
 
-::: {.callout-note appearance="minimal"}
+::: {.callout-tip appearance="minimal"}
 
 ### Arguments
 
@@ -369,7 +371,6 @@ Current possibilities are `"BoxCox"`, `"YeoJohnson"`, `"expoTrans"`, `"center"`,
 ```{r}
 #| fig-height: 7
 
-elnet.tune
 plot(elnet.tune)
 ```
 
