@@ -13,6 +13,8 @@ format:
     history: false
     embed-resources: true
 tbl-cap-location: bottom
+revealjs-plugins:
+  - pointer
 ---
 
 ## Dataset
@@ -110,22 +112,38 @@ glm.full <- glm(diabetes ~ ., family = binomial, data = training)
     - `quasipoisson(link = "log")`
     - See `?family` for more family functions.
 
+- Auxiliary for Controlling GLM Fitting
+    - `epsilon` = `1e-8`: positive convergence tolerance $\epsilon$;
+      the iterations converge when $|dev - dev_{old}|/(|dev| + 0.1) < \epsilon$.
+    - `maxit` = `25`: maximal number of 
+      [**IWLS**](https://en.wikipedia.org/wiki/Iteratively_reweighted_least_squares) iterations.
+    - `trace` = `FALSE`: logical indicating if output should be produced for each iteration.
+
 :::
 
 - Stepwise Selection
 
 ```{r}
 glm.step <- stepAIC(glm.full, scope = list(lower = ~ 1), direction = "both", trace = 0)
+```
+
+::: {.panel-tabset}
+
+### Selection Procedure
+
+```{r}
 glm.step$anova
 ```
 
-- Prediction
+### Coefficients
 
 ```{r}
-predict(glm.step, newdata = head(testing), type = "link")
-predict(glm.step, newdata = head(testing), type = "response")
-predict(glm.step, newdata = head(testing), type = "response", se.fit = TRUE)
+summary(glm.step)
 ```
+
+:::
+
+- Prediction
 
 ::: {.callout-tip}
 
@@ -137,6 +155,12 @@ predict(glm.step, newdata = head(testing), type = "response", se.fit = TRUE)
 - `se.fit`: logical switch indicating if standard errors are required.
 
 :::
+
+```{r}
+predict(glm.step, newdata = head(testing), type = "link")
+predict(glm.step, newdata = head(testing), type = "response")
+predict(glm.step, newdata = head(testing), type = "response", se.fit = TRUE)
+```
 
 ## Regularization
 
@@ -345,6 +369,7 @@ Current possibilities are `"BoxCox"`, `"YeoJohnson"`, `"expoTrans"`, `"center"`,
 ```{r}
 #| fig-height: 7
 
+elnet.tune
 plot(elnet.tune)
 ```
 
@@ -425,19 +450,36 @@ plot(knn.tune.2)
 
 ## Prediction
 
+- Logistic regression with stepwise selection
+
 ```{r}
+# ?predict.glm
+# type = c("link", "response", "terms")
 glm.prob <- predict(glm.step, testing, type = "response")
 pred.step <- ifelse(glm.prob >= 0.5, "pos", "neg")
-
-z <- model.matrix(diabetes ~ ., data = testing)[, -1]
-pred.elnet <- predict(elnet, newx = z, type = "class")
-
-pred.knn.1 <- predict(knn.tune.1, testing)
-pred.knn.2 <- predict(knn.tune.2, testing)
-
-acc <- sapply(mget(ls(pattern = "^pred")), \(x) mean(x == testing$diabetes))
 ```
 
+- Logistic regression with regularization
+
+```{r}
+# ?predict.glmnet
+# type = c("link", "response", "coefficients", "nonzero", "class")
+z <- model.matrix(diabetes ~ ., data = testing)[, -1]
+pred.elnet <- predict(elnet, newx = z, type = "class")
+```
+
+- k-NN`
+
+```{r}
+# ?predict.train
+# type = c("raw", "prob")
+pred.knn.1 <- predict(knn.tune.1, testing)
+pred.knn.2 <- predict(knn.tune.2, testing)
+```
+
+```{r}
+acc <- sapply(mget(ls(pattern = "^pred")), \(x) mean(x == testing$diabetes))
+```
 
 ```{r echo = FALSE}
 names(acc) <- sub("pred.", "", names(acc))
