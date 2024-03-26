@@ -11,10 +11,9 @@ format:
     slide-number: true
     auto-stretch: false
     history: false
+    pdf-max-pages-per-slide: 5
     embed-resources: true
 tbl-cap-location: bottom
-revealjs-plugins:
-  - pointer
 ---
 
 ## Dataset
@@ -114,7 +113,7 @@ glm.full <- glm(diabetes ~ ., family = binomial, data = training)
 
 - Auxiliary for Controlling GLM Fitting
     - `epsilon` = `1e-8`: positive convergence tolerance $\epsilon$;
-      the iterations converge when $|dev - dev_{old}|/(|dev| + 0.1) < \epsilon$.
+      the iterations converge when $\frac{|dev - dev_{old}|}{|dev| + 0.1} < \epsilon$.
     - `maxit` = `25`: maximal number of 
       [**IWLS**](https://en.wikipedia.org/wiki/Iteratively_reweighted_least_squares) iterations.
     - `trace` = `FALSE`: logical indicating if output should be produced for each iteration.
@@ -469,7 +468,7 @@ z <- model.matrix(diabetes ~ ., data = testing)[, -1]
 pred.elnet <- predict(elnet, newx = z, type = "class")
 ```
 
-- k-NN`
+- k-NN
 
 ```{r}
 # ?predict.train

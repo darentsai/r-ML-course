@@ -1,0 +1,180 @@
+---
+title: "Statistical and Machine Learning"
+subtitle: "Lab4: Classification <br> Linear Discriminant Analysis (LDA)"
+author: "Tsai, Dai-Rong"
+format:
+  revealjs:
+    theme: default
+    echo: true
+    smaller: true
+    scrollable: true
+    slide-number: true
+    auto-stretch: false
+    history: false
+    pdf-max-pages-per-slide: 5
+    embed-resources: true
+tbl-cap-location: bottom
+---
+
+## Dataset
+
+```{r echo = FALSE}
+options(digits = 5, width = 100)
+```
+
+```{css echo = FALSE}
+.reveal table, ul ul li {
+  font-size: smaller;
+}
+```
+
+> ***Edgar Anderson's Iris Data***
+
+```{r}
+# Set random seed
+set.seed(12345)
+
+# Packages
+library(MASS) # for lad, qda
+```
+
+- Response
+    - `Species`: setosa / versicolor / virginica
+- Predictors
+    - `Sepal.Length`
+    - `Sepal.Width`
+    - `Petal.Length`
+    - `Petal.Width`
+
+---
+
+::: {.panel-tabset}
+
+### Preview
+
+```{r}
+dim(iris)
+head(iris)
+proportions(table(iris$Species))
+```
+
+### Data Structure
+
+```{r}
+str(iris)
+```
+
+:::
+
+## Create Training/Testing Partitions
+
+- Split data into 80% training set and 20% test set
+
+```{r}
+nr <- nrow(iris)
+train.id <- sample(nr, nr * 0.8)
+
+training <- iris[train.id, ]
+testing <- iris[-train.id, ]
+```
+
+- Check dimension
+
+```{r}
+dim(training)
+dim(testing)
+```
+
+## LDA
+
+```{r echo = FALSE}
+options(max.print = 20)
+```
+
+```{r}
+lda.mod <- lda(Species ~ ., training, prior = c(1,1,1)/3)
+```
+
+::: {.callout-note appearance="minimal"}
+
+If `prior` is unspecified, the class proportions for the training set are used. If present, the probabilities should be specified in the order of the factor levels.
+
+:::
+
+::: {.callout-tip}
+
+### Components of an `lda` object
+
+- `prior`: the prior probabilities used.
+- `means`: the group means.
+- `scaling` : a matrix which transforms observations to discriminant functions, normalized so that within groups covariance matrix is spherical.
+- `svd`: the singular values, which give the ratio of the between- and within-group standard deviations on the linear discriminant variables. Their squares are the canonical F-statistics.
+
+:::
+
+```{r}
+lda.mod
+```
+
+```{r}
+plot(lda.mod, col = as.integer(training$Species)+1, cex = 0.5)
+```
+
+---
+
+- Retrieve the data used to fit the `lda` model
+
+```{r}
+lda.fit <- predict(lda.mod)
+lda.fit 
+```
+
+:::: {.columns}
+
+::: {.column width="50%"}
+
+```{r}
+#| fig-height: 7
+
+ldahist(lda.fit$x[, 1], g = training$Species, type = "both")
+title("LD1", cex.main = 2)
+```
+
+:::
+
+::: {.column width="50%"}
+
+```{r}
+#| fig-height: 7
+
+ldahist(lda.fit$x[, 2], g = training$Species, type = "both")
+title("LD2", cex.main = 2)
+```
+
+:::
+
+::::
+
+- Computation of Linear Discriminants (`LDs`)
+
+```{r}
+(Z <- lda.mod$scaling)
+X <- model.matrix(Species ~ ., training)[, -1]
+center <- t(lda.mod$prior) %*% lda.mod$means
+Xc <- scale(X, center = center, scale = FALSE)
+LD <- Xc %*% Z
+LD
+all.equal(LD, lda.fit$x)
+```
+
+## Prediction
+
+```{r}
+lda.pred <- predict(lda.mod, testing)
+lda.pred
+```
+
+```{r}
+table(Reality = testing$Species, Prediction = lda.pred$class)
+mean(testing$Species == lda.pred$class)
+```
