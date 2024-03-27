@@ -85,7 +85,7 @@ dim(training)
 dim(testing)
 ```
 
-## LDA
+## Linear Discriminant Analysis (LDA)
 
 ```{r echo = FALSE}
 options(max.print = 20)
@@ -117,6 +117,8 @@ lda.mod
 ```
 
 ```{r}
+#| fig-width: 7
+
 plot(lda.mod, col = as.integer(training$Species)+1, cex = 0.5)
 ```
 
