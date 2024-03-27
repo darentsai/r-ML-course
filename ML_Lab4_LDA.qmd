@@ -23,7 +23,7 @@ options(digits = 5, width = 100)
 ```
 
 ```{css echo = FALSE}
-.reveal table, ul ul li {
+.reveal table, ul ul li{
   font-size: smaller;
 }
 ```
@@ -87,10 +87,6 @@ dim(testing)
 
 ## Linear Discriminant Analysis (LDA)
 
-```{r echo = FALSE}
-options(max.print = 20)
-```
-
 ```{r}
 lda.mod <- lda(Species ~ ., training, prior = c(1,1,1)/3)
 ```
@@ -112,6 +108,10 @@ If `prior` is unspecified, the class proportions for the training set are used. 
 
 :::
 
+```{r echo = FALSE}
+options(max.print = 20)
+```
+
 ```{r}
 lda.mod
 ```
@@ -128,7 +128,7 @@ plot(lda.mod, col = as.integer(training$Species)+1, cex = 0.5)
 
 ```{r}
 lda.fit <- predict(lda.mod)
-lda.fit 
+lda.fit
 ```
 
 :::: {.columns}
@@ -169,14 +169,72 @@ LD
 all.equal(LD, lda.fit$x)
 ```
 
+---
+
+- Linear Decision boundaries
+
+```{r}
+#| fig-width: 7
+#| code-fold: true
+#| code-summary: "codes for plot"
+
+library(ggplot2)
+
+lda.grid.mod <- lda(class ~ LD1 + LD2, data.frame(lda.fit$x, class = lda.fit$class))
+ld1 <- seq(min(lda.fit$x[, 1]), max(lda.fit$x[, 1]), length.out = 200)
+ld2 <- seq(min(lda.fit$x[, 2]), max(lda.fit$x[, 2]), length.out = 200)
+lda.grid <- expand.grid(LD1 = ld1, LD2 = ld2)
+lda.grid.post <- cbind(lda.grid, predict(lda.grid.mod, newdata = lda.grid)$posterior)
+
+ggplot(data.frame(lda.fit$x, class = training$Species), aes(x = LD1, y = LD2)) +
+  geom_point(aes(colour = class, shape = class)) +
+  geom_contour(data = lda.grid.post, aes(z = versicolor), breaks = 0.5, colour = 1) +
+  theme_bw()
+```
+
+## Quadratic Discriminant Analysis (QDA)
+
+```{r}
+qda.mod <- qda(Species ~ ., training, prior = c(1,1,1)/3)
+qda.mod
+```
+
+- Quadratic Decision boundaries
+
+```{r}
+#| fig-width: 7
+#| code-fold: true
+#| code-summary: "codes for plot"
+
+library(ggplot2)
+
+qda.fit <- predict(qda.mod)
+qda.grid.mod <- qda(class ~ LD1 + LD2, data.frame(lda.fit$x, class = qda.fit$class))
+qda.grid.post <- cbind(lda.grid, predict(qda.grid.mod, newdata = lda.grid)$posterior)
+
+ggplot(data.frame(lda.fit$x, class = training$Species), aes(x = LD1, y = LD2)) +
+  geom_point(aes(colour = class, shape = class)) +
+  geom_contour(data = qda.grid.post, aes(z = versicolor), breaks = 0.5, colour = 1) +
+  theme_bw()
+```
+
 ## Prediction
 
 ```{r}
 lda.pred <- predict(lda.mod, testing)
-lda.pred
+qda.pred <- predict(qda.mod, testing)
 ```
+
+- LDA
 
 ```{r}
 table(Reality = testing$Species, Prediction = lda.pred$class)
 mean(testing$Species == lda.pred$class)
+```
+
+- QDA
+
+```{r}
+table(Reality = testing$Species, Prediction = qda.pred$class)
+mean(testing$Species == qda.pred$class)
 ```
